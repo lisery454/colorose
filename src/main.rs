@@ -30,23 +30,28 @@ struct ScreenColorApp {
 }
 
 impl ScreenColorApp {
-    pub fn new(context: &Context) -> Self {
-        let state = Arc::new(Mutex::new(ScreenColorAppState {
-            visible: true,
-            ..Default::default()
-        }));
+    pub fn new(state: Arc<Mutex<ScreenColorAppState>>, context: &Context) -> Self {
         let state_clone = state.clone();
         let context_clone = context.clone();
         thread::spawn(move || {
             loop {
-                // let start = Instant::now();
-                // let visible = state_lock.visible;
-                let position = get_mouse_position().unwrap();
-                // println!("pos: {:?}", position);
+                thread::sleep(Duration::from_millis(16));
+
+                let position = match get_mouse_position() {
+                    Ok(p) => p,
+                    Err(_) => {
+                        continue;
+                    }
+                };
 
                 let old_tip_position = state_clone.lock().unwrap().current_tip_position;
                 let (color, current_tip_position) =
-                    get_pixel_color_and_tip_position(position, old_tip_position).unwrap();
+                    match get_pixel_color_and_tip_position(position, old_tip_position) {
+                        Ok(v) => v,
+                        Err(_) => {
+                            continue;
+                        }
+                    };
 
                 let _ = {
                     let mut s = state_clone.lock().unwrap();
@@ -74,8 +79,6 @@ impl ScreenColorApp {
                         false
                     }
                 };
-
-                thread::sleep(Duration::from_millis(16));
             }
         });
 
@@ -99,6 +102,7 @@ impl eframe::App for ScreenColorApp {
             state.color.revert().g,
             state.color.revert().b,
         );
+        let hsl = state.color.to_hsl();
 
         if state.visible {
             egui::CentralPanel::default().show(ctx, |ui| {
@@ -112,6 +116,7 @@ impl eframe::App for ScreenColorApp {
                 .show(ui, |ui| {
                     ui.label(RichText::new(state.position).color(color_revert).strong());
                     ui.label(RichText::new(state.color).color(color_revert).strong());
+                    ui.label(RichText::new(hsl).color(color_revert).strong());
                 });
             });
         }
@@ -121,10 +126,12 @@ impl eframe::App for ScreenColorApp {
 fn main() -> Result<(), Box<dyn Error>> {
     set_dpi_awareness()?;
 
-    let mut tray = TrayItem::new("My App", IconSource::Resource("app-icon")).unwrap();
+    let state = Arc::new(Mutex::new(ScreenColorAppState {
+        visible: true,
+        ..Default::default()
+    }));
 
-    tray.add_menu_item("Show/Hide", move || {}).unwrap();
-
+    let mut tray = TrayItem::new("Colorose", IconSource::Resource("app-icon")).unwrap();
     tray.add_menu_item("Exit", || {
         std::process::exit(0);
     })
@@ -137,7 +144,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .with_always_on_top()
                 .with_has_shadow(true)
                 .with_decorations(false)
-                .with_inner_size((300.0, 60.0))
+                .with_inner_size((300.0, 70.0))
                 .with_transparent(true)
                 .with_taskbar(false),
 
@@ -156,7 +163,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 );
             });
 
-            Ok(Box::new(ScreenColorApp::new(&cc.egui_ctx.clone())))
+            Ok(Box::new(ScreenColorApp::new(
+                state.clone(),
+                &cc.egui_ctx.clone(),
+            )))
         }),
     )?;
 
