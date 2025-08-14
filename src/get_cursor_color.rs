@@ -1,7 +1,7 @@
 use std::{error::Error, fmt::Display};
 
-use mouse_rs::Mouse;
 use screenshots::Screen;
+use windows::Win32::{Foundation::POINT, UI::WindowsAndMessaging::GetCursorPos};
 
 use crate::utils::clamp;
 
@@ -76,14 +76,19 @@ impl Display for GetCursorColorError {
 impl Error for GetCursorColorError {}
 
 pub fn get_mouse_position() -> Result<Position, GetCursorColorError> {
-    let mouse = Mouse::new();
-    let point = mouse
-        .get_position()
-        .or(Err(GetCursorColorError::UnableGetMousePosition))?;
-    Ok(Position {
-        x: point.x,
-        y: point.y,
-    })
+    unsafe {
+        let mut point = POINT::default();
+        match GetCursorPos(&mut point) {
+            Ok(_) => {
+                // println!("Mouse position: ({}, {})", point.x, point.y);
+                Ok(Position {
+                    x: point.x,
+                    y: point.y,
+                })
+            }
+            Err(_) => Err(GetCursorColorError::UnableGetMousePosition),
+        }
+    }
 }
 
 pub fn get_pixel_color_and_tip_position(

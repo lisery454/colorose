@@ -1,59 +1,85 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod get_cursor_color;
 mod utils;
 
 use std::{
     error::Error,
-    sync::{
-        Arc, Mutex,
-        mpsc::{self, Receiver},
-    },
+    sync::{Arc, Mutex},
     thread,
     time::Duration,
 };
 
-use egui::{Color32, CornerRadius, Frame, Margin, RichText, Stroke, ViewportBuilder};
+use egui::{Color32, Context, CornerRadius, Frame, Margin, RichText, Stroke, ViewportBuilder};
+use tray_item::{IconSource, TrayItem};
 
 use crate::{
     get_cursor_color::{Color, Position, get_mouse_position, get_pixel_color_and_tip_position},
     utils::set_dpi_awareness,
 };
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 struct ScreenColorAppState {
+    visible: bool,
     position: Position,
     color: Color,
     current_tip_position: Position,
 }
 
-#[derive(Debug)]
 struct ScreenColorApp {
     state: Arc<Mutex<ScreenColorAppState>>,
-    receiver: Receiver<ScreenColorAppState>,
 }
 
 impl ScreenColorApp {
-    pub fn new() -> Self {
-        let (sender, receiver) = mpsc::channel();
-        let state = Arc::new(Mutex::new(ScreenColorAppState::default()));
+    pub fn new(context: &Context) -> Self {
+        let state = Arc::new(Mutex::new(ScreenColorAppState {
+            visible: true,
+            ..Default::default()
+        }));
         let state_clone = state.clone();
+        let context_clone = context.clone();
         thread::spawn(move || {
             loop {
+                // let start = Instant::now();
+                // let visible = state_lock.visible;
                 let position = get_mouse_position().unwrap();
+                // println!("pos: {:?}", position);
+
                 let old_tip_position = state_clone.lock().unwrap().current_tip_position;
                 let (color, current_tip_position) =
                     get_pixel_color_and_tip_position(position, old_tip_position).unwrap();
-                sender
-                    .send(ScreenColorAppState {
-                        position,
-                        color,
-                        current_tip_position,
-                    })
-                    .unwrap();
-                thread::sleep(Duration::from_millis(33));
+
+                let _ = {
+                    let mut s = state_clone.lock().unwrap();
+                    if position != s.position
+                        || color != s.color
+                        || current_tip_position != s.current_tip_position
+                    {
+                        if current_tip_position != s.current_tip_position {
+                            context_clone.send_viewport_cmd(egui::ViewportCommand::OuterPosition(
+                                egui::pos2(
+                                    current_tip_position.x as f32
+                                        / context_clone.pixels_per_point(),
+                                    current_tip_position.y as f32
+                                        / context_clone.pixels_per_point(),
+                                ),
+                            ));
+                        }
+
+                        s.position = position;
+                        s.color = color;
+                        s.current_tip_position = current_tip_position;
+
+                        true
+                    } else {
+                        false
+                    }
+                };
+
+                thread::sleep(Duration::from_millis(16));
             }
         });
 
-        Self { state, receiver }
+        Self { state }
     }
 }
 
@@ -63,19 +89,9 @@ impl eframe::App for ScreenColorApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        while let Ok(new_state) = self.receiver.try_recv() {
-            *(self.state.lock().unwrap()) = new_state;
-        }
+        // let start = Instant::now();
 
         let state = self.state.lock().unwrap();
-
-        let curr_tip_x = state.current_tip_position.x as f32;
-        let curr_tip_y = state.current_tip_position.y as f32;
-
-        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(
-            curr_tip_x / ctx.pixels_per_point(),
-            curr_tip_y / ctx.pixels_per_point(),
-        )));
 
         let color = Color32::from_rgb(state.color.r, state.color.g, state.color.b);
         let color_revert = Color32::from_rgb(
@@ -84,28 +100,35 @@ impl eframe::App for ScreenColorApp {
             state.color.revert().b,
         );
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            Frame {
-                fill: color,
-                corner_radius: CornerRadius::same(5),
-                inner_margin: Margin::same(5),
-                stroke: Stroke::new(2.0, color_revert),
-                ..Default::default()
-            }
-            .show(ui, |ui| {
-                ui.label(RichText::new(state.position).color(color_revert).strong());
-                ui.label(RichText::new(state.color).color(color_revert).strong());
+        if state.visible {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                Frame {
+                    fill: color,
+                    corner_radius: CornerRadius::same(5),
+                    inner_margin: Margin::same(5),
+                    stroke: Stroke::new(2.0, color_revert),
+                    ..Default::default()
+                }
+                .show(ui, |ui| {
+                    ui.label(RichText::new(state.position).color(color_revert).strong());
+                    ui.label(RichText::new(state.color).color(color_revert).strong());
+                });
             });
-        });
-
-        // ctx.request_repaint();
+        }
     }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     set_dpi_awareness()?;
 
-    let app = ScreenColorApp::new();
+    let mut tray = TrayItem::new("My App", IconSource::Resource("app-icon")).unwrap();
+
+    tray.add_menu_item("Show/Hide", move || {}).unwrap();
+
+    tray.add_menu_item("Exit", || {
+        std::process::exit(0);
+    })
+    .unwrap();
 
     eframe::run_native(
         "get screen color",
@@ -118,6 +141,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .with_transparent(true)
                 .with_taskbar(false),
 
+            vsync: true,
             ..Default::default()
         },
         Box::new(|cc| {
@@ -131,7 +155,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                     egui::FontId::new(12.0, egui::FontFamily::Monospace),
                 );
             });
-            Ok(Box::new(app))
+
+            Ok(Box::new(ScreenColorApp::new(&cc.egui_ctx.clone())))
         }),
     )?;
 
