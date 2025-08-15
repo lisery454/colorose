@@ -8,9 +8,17 @@ mod utils;
 
 use std::error::Error;
 
-use crate::app::App;
+// use crate::app::App;
 
-fn main() -> Result<(), Box<dyn Error>> {
-    App::run()?;
-    Ok(())
+// fn main() -> Result<(), Box<dyn Error>> {
+//     App::run()?;
+//     Ok(())
+// }
+
+slint::include_modules!();
+
+fn main() -> Result<(), slint::PlatformError> {
+    let main_window = MainWindow::new()?;
+
+    main_window.run()
 }
