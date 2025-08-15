@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     color::Color,
-    cursor_color::{get_mouse_position, get_pixel_color_and_tip_position},
+    cursor_color::{get_mouse_position, get_pixel_color_and_tip_position_and_img},
     position::Position,
     tray::init_tray,
     utils::set_dpi_awareness,
@@ -17,18 +17,21 @@ use egui::{
     TextureHandle, TextureOptions, Ui, Vec2, ViewportBuilder, epaint::Hsva,
 };
 
-#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct AppState {
     pub visible: bool,
     pub position: Position,
     pub color: Color,
     pub current_tip_position: Position,
+    pub screen_colors: Vec<Color32>,
+    pub screen_tex_size: usize,
 }
 
 impl AppState {
     pub fn new() -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(AppState {
             visible: true,
+            screen_tex_size: 21,
             ..Default::default()
         }))
     }
@@ -37,6 +40,7 @@ impl AppState {
 pub struct App {
     pub state: Arc<Mutex<AppState>>,
     pub wheel_texture: Option<TextureHandle>,
+    pub screen_texture: Option<TextureHandle>,
 }
 
 // init
@@ -67,8 +71,13 @@ impl App {
                 };
 
                 let old_tip_position = state_clone.lock().unwrap().current_tip_position;
-                let (color, current_tip_position) =
-                    match get_pixel_color_and_tip_position(position, old_tip_position) {
+                let screen_tex_size = state_clone.lock().unwrap().screen_tex_size;
+                let (color, current_tip_position, colors) =
+                    match get_pixel_color_and_tip_position_and_img(
+                        position,
+                        old_tip_position,
+                        screen_tex_size as usize,
+                    ) {
                         Ok(v) => v,
                         Err(_) => {
                             continue;
@@ -91,7 +100,7 @@ impl App {
                                 ),
                             ));
                         }
-
+                        s.screen_colors = colors;
                         s.position = position;
                         s.color = color;
                         s.current_tip_position = current_tip_position;
@@ -107,6 +116,7 @@ impl App {
         Self {
             state,
             wheel_texture: None,
+            screen_texture: None,
         }
     }
 
@@ -121,7 +131,7 @@ impl App {
                     .with_always_on_top()
                     .with_has_shadow(true)
                     .with_decorations(false)
-                    .with_inner_size((300.0, 260.0))
+                    // .with_inner_size((400.0, 250.0))
                     .with_transparent(true)
                     .with_taskbar(false),
                 vsync: true,
@@ -154,40 +164,107 @@ impl eframe::App for App {
         let bg_color = Color32::from_rgb(31, 36, 48);
 
         if state.visible {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                Frame {
-                    fill: bg_color,
-                    corner_radius: CornerRadius::same(5),
-                    inner_margin: Margin::same(5),
-                    stroke: Stroke::new(2.0, fg_color),
-                    ..Default::default()
-                }
-                .show(ui, |ui| {
-                    ui.label(RichText::new(state.position).color(fg_color).strong());
-                    ui.label(RichText::new(state.color).color(fg_color).strong());
-                    ui.label(RichText::new(hsl).color(fg_color).strong());
+            egui::Window::new("window title")
+                .auto_sized()
+                .resizable(false)
+                .title_bar(false)
+                .frame(egui::Frame::NONE.fill(egui::Color32::TRANSPARENT))
+                .show(ctx, |ui| {
                     Frame {
+                        fill: bg_color,
+                        corner_radius: CornerRadius::same(5),
                         inner_margin: Margin::same(5),
+                        stroke: Stroke::new(2.0, fg_color),
                         ..Default::default()
                     }
                     .show(ui, |ui| {
-                        // show_color_wheel_with_sv(ui, color, color_revert, 75.0, 10.0);
-                        show_smooth_color_wheel_texture(
-                            ui,
-                            &mut self.wheel_texture,
-                            color,
-                            color_revert,
-                            75.0,
-                            10.0,
-                        );
+                        ui.label(RichText::new(state.position).color(fg_color).strong());
+                        ui.label(RichText::new(state.color).color(fg_color).strong());
+                        ui.label(RichText::new(hsl).color(fg_color).strong());
+                        ui.horizontal(|ui| {
+                            Frame {
+                                inner_margin: Margin::same(5),
+                                ..Default::default()
+                            }
+                            .show(ui, |ui| {
+                                show_wheel(
+                                    ui,
+                                    &mut self.wheel_texture,
+                                    color,
+                                    color_revert,
+                                    75.0,
+                                    10.0,
+                                );
+                            });
+
+                            show_screen_img(
+                                ui,
+                                &mut self.screen_texture,
+                                150.0,
+                                state.screen_tex_size,
+                                state.screen_colors.clone(),
+                                color_revert,
+                            );
+                        });
                     });
                 });
-            });
         }
     }
 }
 
-pub fn generate_color_wheel_texture(
+pub fn show_screen_img(
+    ui: &mut Ui,
+    texture: &mut Option<TextureHandle>,
+    size: f32,
+    tex_size: usize,
+    pixels: Vec<Color32>,
+    color_revert: Color32,
+) {
+    if tex_size * tex_size == pixels.len() {
+        *texture = Some(ui.ctx().load_texture(
+            "screen_image",
+            egui::epaint::ColorImage {
+                size: [tex_size, tex_size],
+                source_size: Vec2::new(tex_size as f32, tex_size as f32),
+                pixels,
+            },
+            TextureOptions::NEAREST,
+        ));
+    }
+
+    if let Some(tex) = texture {
+        Frame {
+            inner_margin: Margin::same(5),
+            ..Default::default()
+        }
+        .show(ui, |ui| {
+            let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), egui::Sense::hover());
+            let painter = ui.painter();
+            painter.image(
+                tex.id(),
+                rect,
+                Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+                Color32::WHITE,
+            );
+
+            let min_factor = (tex_size as f32 / 2.0).floor() / (tex_size as f32);
+            let max_factor = ((tex_size as f32 / 2.0).floor() + 1.0) / (tex_size as f32);
+            let min_x = (rect.max.x - rect.min.x) * min_factor + rect.min.x;
+            let max_x = (rect.max.x - rect.min.x) * max_factor + rect.min.x;
+            let min_y = (rect.max.y - rect.min.y) * min_factor + rect.min.y;
+            let max_y = (rect.max.y - rect.min.y) * max_factor + rect.min.y;
+            let square_rect = Rect::from_min_max(Pos2::new(min_x, min_y), Pos2::new(max_x, max_y));
+            painter.rect_stroke(
+                square_rect,
+                0.0,
+                Stroke::new(2.0, color_revert),
+                egui::StrokeKind::Outside,
+            );
+        });
+    }
+}
+
+pub fn generate_wheel_texture(
     tex_size: usize,   // 纹理大小（正方形）
     outer_radius: f32, // 外圈半径（像素）
     ring_thickness: f32,
@@ -257,7 +334,7 @@ pub fn generate_color_wheel_texture(
     pixels
 }
 
-pub fn show_smooth_color_wheel_texture(
+pub fn show_wheel(
     ui: &mut Ui,
     texture: &mut Option<TextureHandle>,
     color: Color32,
@@ -267,7 +344,7 @@ pub fn show_smooth_color_wheel_texture(
 ) {
     let tex_size = (outer_radius * 2.0 * 2.0) as usize;
     if texture.is_none() {
-        let pixels = generate_color_wheel_texture(tex_size, outer_radius, ring_thickness);
+        let pixels = generate_wheel_texture(tex_size, outer_radius, ring_thickness);
         *texture = Some(ui.ctx().load_texture(
             "color_wheel_texture",
             egui::epaint::ColorImage {

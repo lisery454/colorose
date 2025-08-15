@@ -1,5 +1,6 @@
 use std::{error::Error, fmt::Display};
 
+use egui::Color32;
 use screenshots::Screen;
 use windows::Win32::{Foundation::POINT, UI::WindowsAndMessaging::GetCursorPos};
 
@@ -44,13 +45,14 @@ pub fn get_mouse_position() -> Result<Position, GetCursorColorError> {
     }
 }
 
-pub fn get_pixel_color_and_tip_position(
+pub fn get_pixel_color_and_tip_position_and_img(
     position: Position,
     old_tip_position: Position,
-) -> Result<(Color, Position), GetCursorColorError> {
-    let distance_x = (60, -340); // right, left
-    let distance_y = (30, -380); // bottom, up
-    let limit = 400;
+    screen_tex_size: usize,
+) -> Result<(Color, Position, Vec<Color32>), GetCursorColorError> {
+    let distance_x = (70, -500); // right, left
+    let distance_y = (50, -400); // bottom, up
+    let limit = 600;
 
     let screens = Screen::all().or(Err(GetCursorColorError::UnableGetScreens))?;
     for screen in screens {
@@ -68,40 +70,52 @@ pub fn get_pixel_color_and_tip_position(
             && physical_screen_y <= physical_y
             && physical_y < physical_screen_y + physical_screen_height
         {
+            let half_size = (screen_tex_size as f32 / 2.0).floor() as u32;
             let image = screen
                 .capture_area(
-                    physical_x - physical_screen_x,
-                    physical_y - physical_screen_y,
-                    1,
-                    1,
+                    physical_x - physical_screen_x - half_size as i32,
+                    physical_y - physical_screen_y - half_size as i32,
+                    half_size * 2 + 1,
+                    half_size * 2 + 1,
                 )
                 .or(Err(GetCursorColorError::UnableGetBuffer))?;
 
-            let pixel = image.get_pixel(0, 0);
+            let pixel = image.get_pixel(half_size, half_size);
+
+            let (width, height) = image.dimensions();
+            let mut colors = vec![];
+            for y in 0..height {
+                for x in 0..width {
+                    let pixel = image.get_pixel(x, y);
+                    let color =
+                        Color32::from_rgba_unmultiplied(pixel[0], pixel[1], pixel[2], pixel[3]);
+                    colors.push(color);
+                }
+            }
 
             let mut target_tip_position: Position;
             if physical_x > physical_screen_x + physical_screen_width - limit {
                 if physical_y > physical_screen_y + physical_screen_height - limit {
                     target_tip_position = Position {
-                        x: distance_x.1,
-                        y: distance_y.1,
+                        x: (distance_x.1 as f32 * scale) as i32,
+                        y: (distance_y.1 as f32 * scale) as i32,
                     };
                 } else {
                     target_tip_position = Position {
-                        x: distance_x.1,
-                        y: distance_y.0,
+                        x: (distance_x.1 as f32 * scale) as i32,
+                        y: (distance_y.0 as f32 * scale) as i32,
                     };
                 }
             } else {
                 if physical_y > physical_screen_y + physical_screen_height - limit {
                     target_tip_position = Position {
-                        x: distance_x.0,
-                        y: distance_y.1,
+                        x: (distance_x.0 as f32 * scale) as i32,
+                        y: (distance_y.1 as f32 * scale) as i32,
                     };
                 } else {
                     target_tip_position = Position {
-                        x: distance_x.0,
-                        y: distance_y.0,
+                        x: (distance_x.0 as f32 * scale) as i32,
+                        y: (distance_y.0 as f32 * scale) as i32,
                     };
                 }
             }
@@ -124,6 +138,7 @@ pub fn get_pixel_color_and_tip_position(
                     b: pixel.0[2],
                 },
                 current_tip_position,
+                colors,
             ));
         }
     }
