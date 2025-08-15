@@ -48,9 +48,9 @@ pub fn get_pixel_color_and_tip_position(
     position: Position,
     old_tip_position: Position,
 ) -> Result<(Color, Position), GetCursorColorError> {
-    let distance_x = (60, -300); // right, left
-    let distance_y = (30, -150); // bottom, up
-    let limit = 300;
+    let distance_x = (60, -340); // right, left
+    let distance_y = (30, -380); // bottom, up
+    let limit = 400;
 
     let screens = Screen::all().or(Err(GetCursorColorError::UnableGetScreens))?;
     for screen in screens {
