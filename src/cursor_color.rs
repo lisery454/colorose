@@ -49,9 +49,10 @@ pub fn get_pixel_color_and_tip_position_and_img(
     position: Position,
     old_tip_position: Position,
     screen_tex_size: usize,
+    screen_sample_size: usize,
 ) -> Result<(Color, Position, Vec<Color32>), GetCursorColorError> {
-    let distance_x = (70, -500); // right, left
-    let distance_y = (50, -400); // bottom, up
+    let distance_x = (100, -600); // right, left
+    let distance_y = (100, -500); // bottom, up
     let limit = 600;
 
     let screens = Screen::all().or(Err(GetCursorColorError::UnableGetScreens))?;
@@ -71,6 +72,7 @@ pub fn get_pixel_color_and_tip_position_and_img(
             && physical_y < physical_screen_y + physical_screen_height
         {
             let half_size = (screen_tex_size as f32 / 2.0).floor() as u32;
+            let half_sample_size = (screen_sample_size as f32 / 2.0).floor() as i32;
             let image = screen
                 .capture_area(
                     physical_x - physical_screen_x - half_size as i32,
@@ -80,7 +82,26 @@ pub fn get_pixel_color_and_tip_position_and_img(
                 )
                 .or(Err(GetCursorColorError::UnableGetBuffer))?;
 
-            let pixel = image.get_pixel(half_size, half_size);
+            let mut sample_colors = vec![];
+            for dx in -half_sample_size..=half_sample_size {
+                for dy in -half_sample_size..=half_sample_size {
+                    let x = (half_size as i32 + dx) as u32;
+                    let y = (half_size as i32 + dy) as u32;
+
+                    let pixel = image.get_pixel(x, y);
+                    sample_colors.push(Color {
+                        r: pixel.0[0],
+                        g: pixel.0[1],
+                        b: pixel.0[2],
+                    });
+                }
+            }
+            let len = sample_colors.len() as f32;
+            let color = Color {
+                r: (sample_colors.iter().map(|c| c.r as u32).sum::<u32>() as f32 / len) as u8,
+                g: (sample_colors.iter().map(|c| c.g as u32).sum::<u32>() as f32 / len) as u8,
+                b: (sample_colors.iter().map(|c| c.b as u32).sum::<u32>() as f32 / len) as u8,
+            };
 
             let (width, height) = image.dimensions();
             let mut colors = vec![];
@@ -131,15 +152,7 @@ pub fn get_pixel_color_and_tip_position_and_img(
             current_tip_position.x = clamp(old_tip_position.x, target_tip_position.x, 0.7);
             current_tip_position.y = clamp(old_tip_position.y, target_tip_position.y, 0.7);
 
-            return Ok((
-                Color {
-                    r: pixel.0[0],
-                    g: pixel.0[1],
-                    b: pixel.0[2],
-                },
-                current_tip_position,
-                colors,
-            ));
+            return Ok((color, current_tip_position, colors));
         }
     }
 

@@ -14,7 +14,7 @@ use crate::{
 };
 use egui::{
     Color32, Context, CornerRadius, Frame, Margin, Mesh, Pos2, Rect, RichText, Stroke,
-    TextureHandle, TextureOptions, Ui, Vec2, ViewportBuilder, epaint::Hsva,
+    TextureHandle, TextureOptions, Ui, Vec2, ViewportBuilder, ViewportCommand, epaint::Hsva,
 };
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -25,6 +25,7 @@ pub struct AppState {
     pub current_tip_position: Position,
     pub screen_colors: Vec<Color32>,
     pub screen_tex_size: usize,
+    pub screen_sample_size: usize,
 }
 
 impl AppState {
@@ -32,6 +33,7 @@ impl AppState {
         Arc::new(Mutex::new(AppState {
             visible: true,
             screen_tex_size: 21,
+            screen_sample_size: 1,
             ..Default::default()
         }))
     }
@@ -41,6 +43,7 @@ pub struct App {
     pub state: Arc<Mutex<AppState>>,
     pub wheel_texture: Option<TextureHandle>,
     pub screen_texture: Option<TextureHandle>,
+    pub first_frame: bool,
 }
 
 // init
@@ -72,11 +75,13 @@ impl App {
 
                 let old_tip_position = state_clone.lock().unwrap().current_tip_position;
                 let screen_tex_size = state_clone.lock().unwrap().screen_tex_size;
+                let screen_sample_size = state_clone.lock().unwrap().screen_sample_size;
                 let (color, current_tip_position, colors) =
                     match get_pixel_color_and_tip_position_and_img(
                         position,
                         old_tip_position,
-                        screen_tex_size as usize,
+                        screen_tex_size,
+                        screen_sample_size,
                     ) {
                         Ok(v) => v,
                         Err(_) => {
@@ -117,13 +122,14 @@ impl App {
             state,
             wheel_texture: None,
             screen_texture: None,
+            first_frame: true,
         }
     }
 
     pub fn run() -> Result<(), Box<dyn Error>> {
         set_dpi_awareness()?;
         let state = AppState::new();
-        let _tray_item = init_tray();
+        let _tray = init_tray();
         eframe::run_native(
             "Colorose",
             eframe::NativeOptions {
@@ -132,7 +138,7 @@ impl App {
                     .with_has_shadow(true)
                     .with_decorations(false)
                     // .with_inner_size((400.0, 250.0))
-                    .with_transparent(true)
+                    // .with_transparent(true)
                     .with_taskbar(false),
                 vsync: true,
                 ..Default::default()
@@ -164,11 +170,10 @@ impl eframe::App for App {
         let bg_color = Color32::from_rgb(31, 36, 48);
 
         if state.visible {
-            egui::Window::new("window title")
-                .auto_sized()
-                .resizable(false)
+            egui::Window::new("content")
                 .title_bar(false)
                 .frame(egui::Frame::NONE.fill(egui::Color32::TRANSPARENT))
+                .auto_sized()
                 .show(ctx, |ui| {
                     Frame {
                         fill: bg_color,
@@ -204,10 +209,17 @@ impl eframe::App for App {
                                 state.screen_tex_size,
                                 state.screen_colors.clone(),
                                 color_revert,
+                                state.screen_sample_size,
                             );
                         });
                     });
                 });
+        }
+
+        if self.first_frame {
+            let used_size = ctx.used_size(); // 获取当前 UI 实际占用的像素尺寸
+            ctx.send_viewport_cmd(ViewportCommand::InnerSize(used_size));
+            self.first_frame = false;
         }
     }
 }
@@ -219,6 +231,7 @@ pub fn show_screen_img(
     tex_size: usize,
     pixels: Vec<Color32>,
     color_revert: Color32,
+    screen_sample_size: usize,
 ) {
     if tex_size * tex_size == pixels.len() {
         *texture = Some(ui.ctx().load_texture(
@@ -247,8 +260,11 @@ pub fn show_screen_img(
                 Color32::WHITE,
             );
 
-            let min_factor = (tex_size as f32 / 2.0).floor() / (tex_size as f32);
-            let max_factor = ((tex_size as f32 / 2.0).floor() + 1.0) / (tex_size as f32);
+            let half_sample_size = (screen_sample_size as f32 / 2.0).floor();
+            let min_factor =
+                ((tex_size as f32 / 2.0).floor() - half_sample_size) / (tex_size as f32);
+            let max_factor =
+                ((tex_size as f32 / 2.0).floor() + half_sample_size + 1.0) / (tex_size as f32);
             let min_x = (rect.max.x - rect.min.x) * min_factor + rect.min.x;
             let max_x = (rect.max.x - rect.min.x) * max_factor + rect.min.x;
             let min_y = (rect.max.y - rect.min.y) * min_factor + rect.min.y;
@@ -259,6 +275,22 @@ pub fn show_screen_img(
                 0.0,
                 Stroke::new(2.0, color_revert),
                 egui::StrokeKind::Outside,
+            );
+        });
+    } else {
+        Frame {
+            inner_margin: Margin::same(5),
+            ..Default::default()
+        }
+        .show(ui, |ui| {
+            let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), egui::Sense::hover());
+            let painter = ui.painter();
+            painter.rect(
+                rect,
+                0.0,
+                Color32::TRANSPARENT,
+                Stroke::NONE,
+                egui::StrokeKind::Middle,
             );
         });
     }
