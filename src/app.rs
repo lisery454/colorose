@@ -11,6 +11,7 @@ use egui::{
     epaint::Hsva,
 };
 use image::ImageReader;
+use std::ops::DerefMut;
 use std::path::Path;
 use std::{
     error::Error,
@@ -58,7 +59,7 @@ impl App {
         context.style_mut(|style| {
             style.text_styles.insert(
                 egui::TextStyle::Body,
-                egui::FontId::new(12.0, egui::FontFamily::Monospace),
+                egui::FontId::new(15.0, egui::FontFamily::Monospace),
             );
         });
 
@@ -119,11 +120,11 @@ impl App {
                     .with_has_shadow(true)
                     .with_decorations(true)
                     .with_inner_size((400.0, 250.0))
-                    // .with_transparent(true)
                     .with_icon(load_icon_data("resources/app-icon.png").unwrap())
                     .with_taskbar(true)
-                    .with_movable_by_background(true)
-                    .with_resizable(false),
+                    .with_drag_and_drop(true)
+                    .with_resizable(false)
+                    .with_transparent(true),
 
                 vsync: true,
 
@@ -137,7 +138,7 @@ impl App {
 
 // ui
 impl eframe::App for App {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         let state = self.state.lock().unwrap();
 
         let color = Color32::from_rgb(state.color.r, state.color.g, state.color.b);
@@ -152,51 +153,43 @@ impl eframe::App for App {
         let bg_color = Color32::from_rgb(31, 36, 48);
 
         if state.visible {
-            egui::Window::new("content")
-                .auto_sized()
-                .title_bar(false)
+            egui::CentralPanel::default()
                 .frame(Frame {
                     fill: bg_color,
+                    inner_margin: Margin::same(15),
+                    // corner_radius: CornerRadius::same(5),
+                    // stroke: Stroke::new(2.0, fg_color),
                     ..Default::default()
                 })
                 .show(ctx, |ui| {
-                    Frame {
-                        fill: bg_color,
-                        // corner_radius: CornerRadius::same(0),
-                        inner_margin: Margin::same(8),
-                        // stroke: Stroke::new(2.0, fg_color),
-                        ..Default::default()
-                    }
-                    .show(ui, |ui| {
-                        ui.label(RichText::new(state.position).color(fg_color).strong());
-                        ui.label(RichText::new(state.color).color(fg_color).strong());
-                        ui.label(RichText::new(hsv).color(fg_color).strong());
-                        ui.horizontal(|ui| {
-                            Frame {
-                                inner_margin: Margin::same(5),
-                                ..Default::default()
-                            }
+                    ui.label(RichText::new(state.position).color(fg_color).strong());
+                    ui.label(RichText::new(state.color).color(fg_color).strong());
+                    ui.label(RichText::new(hsv).color(fg_color).strong());
+                    ui.horizontal(|ui| {
+                        Frame {
+                            inner_margin: Margin::same(5),
+                            ..Default::default()
+                        }
                             .show(ui, |ui| {
                                 show_wheel(
                                     ui,
                                     &mut self.wheel_texture,
                                     color,
                                     color_revert,
-                                    75.0,
-                                    10.0,
+                                    80.0,
+                                    12.0,
                                 );
                             });
 
-                            show_screen_img(
-                                ui,
-                                &mut self.screen_texture,
-                                150.0,
-                                state.screen_tex_size,
-                                state.screen_colors.clone(),
-                                color_revert,
-                                state.screen_sample_size,
-                            );
-                        });
+                        show_screen_img(
+                            ui,
+                            &mut self.screen_texture,
+                            160.0,
+                            state.screen_tex_size,
+                            state.screen_colors.clone(),
+                            color_revert,
+                            state.screen_sample_size,
+                        );
                     });
                 });
         }
@@ -204,6 +197,11 @@ impl eframe::App for App {
         if self.first_frame {
             let used_size = ctx.used_size(); // 获取当前 UI 实际占用的像素尺寸
             ctx.send_viewport_cmd(ViewportCommand::InnerSize(used_size));
+            ctx.send_viewport_cmd(ViewportCommand::EnableButtons {
+                minimized: true,
+                maximize: false,
+                close: true,
+            });
             self.first_frame = false;
         }
 
@@ -241,49 +239,49 @@ pub fn show_screen_img(
             inner_margin: Margin::same(5),
             ..Default::default()
         }
-        .show(ui, |ui| {
-            let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), egui::Sense::hover());
-            let painter = ui.painter();
-            painter.image(
-                tex.id(),
-                rect,
-                Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
-                Color32::WHITE,
-            );
+            .show(ui, |ui| {
+                let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), egui::Sense::hover());
+                let painter = ui.painter();
+                painter.image(
+                    tex.id(),
+                    rect,
+                    Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+                    Color32::WHITE,
+                );
 
-            let half_sample_size = (screen_sample_size as f32 / 2.0).floor();
-            let min_factor =
-                ((tex_size as f32 / 2.0).floor() - half_sample_size) / (tex_size as f32);
-            let max_factor =
-                ((tex_size as f32 / 2.0).floor() + half_sample_size + 1.0) / (tex_size as f32);
-            let min_x = (rect.max.x - rect.min.x) * min_factor + rect.min.x;
-            let max_x = (rect.max.x - rect.min.x) * max_factor + rect.min.x;
-            let min_y = (rect.max.y - rect.min.y) * min_factor + rect.min.y;
-            let max_y = (rect.max.y - rect.min.y) * max_factor + rect.min.y;
-            let square_rect = Rect::from_min_max(Pos2::new(min_x, min_y), Pos2::new(max_x, max_y));
-            painter.rect_stroke(
-                square_rect,
-                0.0,
-                Stroke::new(2.0, color_revert),
-                egui::StrokeKind::Outside,
-            );
-        });
+                let half_sample_size = (screen_sample_size as f32 / 2.0).floor();
+                let min_factor =
+                    ((tex_size as f32 / 2.0).floor() - half_sample_size) / (tex_size as f32);
+                let max_factor =
+                    ((tex_size as f32 / 2.0).floor() + half_sample_size + 1.0) / (tex_size as f32);
+                let min_x = (rect.max.x - rect.min.x) * min_factor + rect.min.x;
+                let max_x = (rect.max.x - rect.min.x) * max_factor + rect.min.x;
+                let min_y = (rect.max.y - rect.min.y) * min_factor + rect.min.y;
+                let max_y = (rect.max.y - rect.min.y) * max_factor + rect.min.y;
+                let square_rect = Rect::from_min_max(Pos2::new(min_x, min_y), Pos2::new(max_x, max_y));
+                painter.rect_stroke(
+                    square_rect,
+                    0.0,
+                    Stroke::new(2.0, color_revert),
+                    egui::StrokeKind::Outside,
+                );
+            });
     } else {
         Frame {
             inner_margin: Margin::same(5),
             ..Default::default()
         }
-        .show(ui, |ui| {
-            let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), egui::Sense::hover());
-            let painter = ui.painter();
-            painter.rect(
-                rect,
-                0.0,
-                Color32::TRANSPARENT,
-                Stroke::NONE,
-                egui::StrokeKind::Middle,
-            );
-        });
+            .show(ui, |ui| {
+                let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), egui::Sense::hover());
+                let painter = ui.painter();
+                painter.rect(
+                    rect,
+                    0.0,
+                    Color32::TRANSPARENT,
+                    Stroke::NONE,
+                    egui::StrokeKind::Middle,
+                );
+            });
     }
 }
 
