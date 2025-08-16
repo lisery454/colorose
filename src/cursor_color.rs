@@ -4,7 +4,7 @@ use egui::Color32;
 use screenshots::Screen;
 use windows::Win32::{Foundation::POINT, UI::WindowsAndMessaging::GetCursorPos};
 
-use crate::{color::Color, position::Position, utils::clamp};
+use crate::{color::Color, position::Position};
 
 #[derive(Debug)]
 pub enum GetCursorColorError {
@@ -45,16 +45,11 @@ pub fn get_mouse_position() -> Result<Position, GetCursorColorError> {
     }
 }
 
-pub fn get_pixel_color_and_tip_position_and_img(
+pub fn get_pixel_colors(
     position: Position,
-    old_tip_position: Position,
     screen_tex_size: usize,
     screen_sample_size: usize,
-) -> Result<(Color, Position, Vec<Color32>), GetCursorColorError> {
-    let distance_x = (100, -600); // right, left
-    let distance_y = (100, -500); // bottom, up
-    let limit = 600;
-
+) -> Result<(Color, Vec<Color32>), GetCursorColorError> {
     let screens = Screen::all().or(Err(GetCursorColorError::UnableGetScreens))?;
     for screen in screens {
         let scale = screen.display_info.scale_factor;
@@ -114,45 +109,7 @@ pub fn get_pixel_color_and_tip_position_and_img(
                 }
             }
 
-            let mut target_tip_position: Position;
-            if physical_x > physical_screen_x + physical_screen_width - limit {
-                if physical_y > physical_screen_y + physical_screen_height - limit {
-                    target_tip_position = Position {
-                        x: (distance_x.1 as f32 * scale) as i32,
-                        y: (distance_y.1 as f32 * scale) as i32,
-                    };
-                } else {
-                    target_tip_position = Position {
-                        x: (distance_x.1 as f32 * scale) as i32,
-                        y: (distance_y.0 as f32 * scale) as i32,
-                    };
-                }
-            } else {
-                if physical_y > physical_screen_y + physical_screen_height - limit {
-                    target_tip_position = Position {
-                        x: (distance_x.0 as f32 * scale) as i32,
-                        y: (distance_y.1 as f32 * scale) as i32,
-                    };
-                } else {
-                    target_tip_position = Position {
-                        x: (distance_x.0 as f32 * scale) as i32,
-                        y: (distance_y.0 as f32 * scale) as i32,
-                    };
-                }
-            }
-
-            target_tip_position.x += physical_x;
-            target_tip_position.y += physical_y;
-
-            let mut current_tip_position = Position {
-                x: old_tip_position.x,
-                y: old_tip_position.y,
-            };
-
-            current_tip_position.x = clamp(old_tip_position.x, target_tip_position.x, 0.7);
-            current_tip_position.y = clamp(old_tip_position.y, target_tip_position.y, 0.7);
-
-            return Ok((color, current_tip_position, colors));
+            return Ok((color, colors));
         }
     }
 

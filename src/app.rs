@@ -1,3 +1,17 @@
+use crate::color::HSV;
+use crate::{
+    color::Color,
+    cursor_color::{get_mouse_position, get_pixel_colors},
+    position::Position,
+    utils::set_dpi_awareness,
+};
+use egui::{
+    Color32, Context, CornerRadius, Frame, IconData, ImageData, Margin, Mesh, Pos2, Rect, RichText,
+    Stroke, TextureHandle, TextureOptions, Ui, Vec2, ViewportBuilder, ViewportCommand,
+    epaint::Hsva,
+};
+use image::ImageReader;
+use std::path::Path;
 use std::{
     error::Error,
     sync::{Arc, Mutex},
@@ -5,24 +19,12 @@ use std::{
     time::Duration,
 };
 
-use crate::{
-    color::Color,
-    cursor_color::{get_mouse_position, get_pixel_color_and_tip_position_and_img},
-    position::Position,
-    tray::init_tray,
-    utils::set_dpi_awareness,
-};
-use egui::{
-    Color32, Context, CornerRadius, Frame, Margin, Mesh, Pos2, Rect, RichText, Stroke,
-    TextureHandle, TextureOptions, Ui, Vec2, ViewportBuilder, ViewportCommand, epaint::Hsva,
-};
-
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct AppState {
     pub visible: bool,
     pub position: Position,
     pub color: Color,
-    pub current_tip_position: Position,
+
     pub screen_colors: Vec<Color32>,
     pub screen_tex_size: usize,
     pub screen_sample_size: usize,
@@ -73,16 +75,10 @@ impl App {
                     }
                 };
 
-                let old_tip_position = state_clone.lock().unwrap().current_tip_position;
                 let screen_tex_size = state_clone.lock().unwrap().screen_tex_size;
                 let screen_sample_size = state_clone.lock().unwrap().screen_sample_size;
-                let (color, current_tip_position, colors) =
-                    match get_pixel_color_and_tip_position_and_img(
-                        position,
-                        old_tip_position,
-                        screen_tex_size,
-                        screen_sample_size,
-                    ) {
+                let (color, colors) =
+                    match get_pixel_colors(position, screen_tex_size, screen_sample_size) {
                         Ok(v) => v,
                         Err(_) => {
                             continue;
@@ -91,24 +87,10 @@ impl App {
 
                 let _ = {
                     let mut s = state_clone.lock().unwrap();
-                    if position != s.position
-                        || color != s.color
-                        || current_tip_position != s.current_tip_position
-                    {
-                        if current_tip_position != s.current_tip_position {
-                            context_clone.send_viewport_cmd(egui::ViewportCommand::OuterPosition(
-                                egui::pos2(
-                                    current_tip_position.x as f32
-                                        / context_clone.pixels_per_point(),
-                                    current_tip_position.y as f32
-                                        / context_clone.pixels_per_point(),
-                                ),
-                            ));
-                        }
+                    if position != s.position || color != s.color {
                         s.screen_colors = colors;
                         s.position = position;
                         s.color = color;
-                        s.current_tip_position = current_tip_position;
 
                         true
                     } else {
@@ -129,18 +111,22 @@ impl App {
     pub fn run() -> Result<(), Box<dyn Error>> {
         set_dpi_awareness()?;
         let state = AppState::new();
-        let _tray = init_tray();
         eframe::run_native(
             "Colorose",
             eframe::NativeOptions {
                 viewport: ViewportBuilder::default()
                     .with_always_on_top()
                     .with_has_shadow(true)
-                    .with_decorations(false)
-                    // .with_inner_size((400.0, 250.0))
+                    .with_decorations(true)
+                    .with_inner_size((400.0, 250.0))
                     // .with_transparent(true)
-                    .with_taskbar(false),
+                    .with_icon(load_icon_data("resources/app-icon.png").unwrap())
+                    .with_taskbar(true)
+                    .with_movable_by_background(true)
+                    .with_resizable(false),
+
                 vsync: true,
+
                 ..Default::default()
             },
             Box::new(|cc| Ok(Box::new(App::new(state.clone(), &cc.egui_ctx.clone())))),
@@ -151,10 +137,6 @@ impl App {
 
 // ui
 impl eframe::App for App {
-    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        [0.0, 0.0, 0.0, 0.0]
-    }
-
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let state = self.state.lock().unwrap();
 
@@ -164,28 +146,31 @@ impl eframe::App for App {
             state.color.revert().g,
             state.color.revert().b,
         );
-        let hsl = state.color.to_hsl();
+        let hsv = state.color.to_hsv();
 
         let fg_color = Color32::from_rgb(219, 214, 201);
         let bg_color = Color32::from_rgb(31, 36, 48);
 
         if state.visible {
             egui::Window::new("content")
-                .title_bar(false)
-                .frame(egui::Frame::NONE.fill(egui::Color32::TRANSPARENT))
                 .auto_sized()
+                .title_bar(false)
+                .frame(Frame {
+                    fill: bg_color,
+                    ..Default::default()
+                })
                 .show(ctx, |ui| {
                     Frame {
                         fill: bg_color,
-                        corner_radius: CornerRadius::same(5),
-                        inner_margin: Margin::same(5),
-                        stroke: Stroke::new(2.0, fg_color),
+                        // corner_radius: CornerRadius::same(0),
+                        inner_margin: Margin::same(8),
+                        // stroke: Stroke::new(2.0, fg_color),
                         ..Default::default()
                     }
                     .show(ui, |ui| {
                         ui.label(RichText::new(state.position).color(fg_color).strong());
                         ui.label(RichText::new(state.color).color(fg_color).strong());
-                        ui.label(RichText::new(hsl).color(fg_color).strong());
+                        ui.label(RichText::new(hsv).color(fg_color).strong());
                         ui.horizontal(|ui| {
                             Frame {
                                 inner_margin: Margin::same(5),
@@ -221,6 +206,12 @@ impl eframe::App for App {
             ctx.send_viewport_cmd(ViewportCommand::InnerSize(used_size));
             self.first_frame = false;
         }
+
+        ctx.request_repaint_after(Duration::from_millis(34));
+    }
+
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        [0.0, 0.0, 0.0, 0.0]
     }
 }
 
@@ -335,6 +326,7 @@ pub fn generate_wheel_texture(
                         // 色相环
                         let angle = dy.atan2(dx);
                         let hue = (angle / std::f32::consts::TAU).rem_euclid(1.0);
+                        let hue = (hue + 5.0 / 12.0).rem_euclid(1.0);
                         Hsva::new(hue, 1.0, 1.0, 1.0)
                     // } else if dx.abs() <= square_half && dy.abs() <= square_half {
                     //     // SV 方块
@@ -404,7 +396,7 @@ pub fn show_wheel(
             Color32::WHITE,
         );
 
-        let hsva: Hsva = color.into();
+        let mut hsv: HSV = Color::from(color).to_hsv();
 
         // ===== 绘制 SV 方块 =====
         let square_size = (outer_radius - ring_thickness) * 2.0 / 1.414 - 3.0;
@@ -417,8 +409,8 @@ pub fn show_wheel(
             let bottom_left = square_rect.left_bottom();
             let bottom_right = square_rect.right_bottom();
 
-            let col_left = Color32::from(Hsva::new(hsva.h, 0.0, 1.0, 1.0));
-            let col_right = Color32::from(Hsva::new(hsva.h, 1.0, 1.0, 1.0));
+            let col_left = Color32::from(Hsva::new(hsv.h / 360.0, 0.0, 1.0, 1.0));
+            let col_right = Color32::from(Hsva::new(hsv.h / 360.0, 1.0, 1.0, 1.0));
 
             let idx = mesh.vertices.len() as u32;
             mesh.colored_vertex(top_left, col_left);
@@ -454,7 +446,7 @@ pub fn show_wheel(
 
         // ===== 绘制标记点 =====
         // 外环 hue 点
-        let hue_angle = hsva.h * std::f32::consts::TAU;
+        let hue_angle = (hsv.h - 150.0) / 360.0 * std::f32::consts::TAU;
         let hue_pos = center
             + Vec2::angled(hue_angle) * ((outer_radius + outer_radius - ring_thickness) / 2.0);
         painter.circle_stroke(hue_pos, 4.0, Stroke::new(2.0, Color32::WHITE));
@@ -462,9 +454,21 @@ pub fn show_wheel(
         // SV 方块点
         let square_size = (outer_radius - ring_thickness) * 2.0 / 1.414 - 3.0;
         let square_rect = Rect::from_center_size(center, Vec2::splat(square_size));
-
-        let sv_x = square_rect.left() + hsva.s * square_size;
-        let sv_y = square_rect.top() + (1.0 - hsva.v) * square_size;
+        let sv_x = square_rect.left() + hsv.s * square_size;
+        let sv_y = square_rect.top() + (1.0 - hsv.v) * square_size;
         painter.circle_stroke(Pos2::new(sv_x, sv_y), 4.0, Stroke::new(2.0, color_revert));
     }
+}
+
+fn load_icon_data(path: impl AsRef<Path>) -> Option<Arc<IconData>> {
+    let img = ImageReader::open(path).ok()?.decode().ok()?;
+    let rgba = img.to_rgba8();
+
+    let width = rgba.width();
+    let height = rgba.height();
+    Some(Arc::new(IconData {
+        rgba: rgba.into_raw(),
+        width: width as _,
+        height: height as _,
+    }))
 }

@@ -7,6 +7,4 @@ fn main() {
 
         res.compile().unwrap();
     }
-
-    slint_build::compile("ui/app-window.slint").expect("Slint build failed");
 }

@@ -6,12 +6,8 @@ edition = "2024"
 [dependencies]
 eframe = { version = "0.32.0", features = ["glow"] }
 egui = "0.32.0"
-# iced = "0.13.1"
-# mouse-rs = "0.4.2"
+image = "0.25.6"
 screenshots = "0.8.10"
-slint = "1.12.1"
-tokio = "1.47.1"
-tray-item = "0.10.0"
 windows = { version = "0.61.3", features = [
     "Win32_Foundation",
     "Win32_UI_HiDpi",
@@ -21,7 +17,6 @@ windows = { version = "0.61.3", features = [
 
 [build-dependencies]
 winres = "0.1"
-slint-build = "1.12.1"
 
 [package.metadata.winres]
 # WindowsSubsystem = "windows" 
