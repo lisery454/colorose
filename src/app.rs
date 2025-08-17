@@ -5,13 +5,13 @@ use crate::{
     position::Position,
     utils::set_dpi_awareness,
 };
+use eframe::epaint::StrokeKind;
 use egui::{
-    Color32, Context, CornerRadius, Frame, IconData, ImageData, Margin, Mesh, Pos2, Rect, RichText,
-    Stroke, TextureHandle, TextureOptions, Ui, Vec2, ViewportBuilder, ViewportCommand,
-    epaint::Hsva,
+    Button, Color32, Context, CornerRadius, Frame, IconData, Margin, Mesh, PointerButton, Pos2,
+    Rect, RichText, Stroke, TextureHandle, TextureOptions, Ui, Vec2, ViewportBuilder,
+    ViewportCommand, epaint::Hsva,
 };
 use image::ImageReader;
-use std::ops::DerefMut;
 use std::path::Path;
 use std::{
     error::Error,
@@ -22,7 +22,6 @@ use std::{
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct AppState {
-    pub visible: bool,
     pub position: Position,
     pub color: Color,
 
@@ -34,7 +33,6 @@ pub struct AppState {
 impl AppState {
     pub fn new() -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(AppState {
-            visible: true,
             screen_tex_size: 21,
             screen_sample_size: 1,
             ..Default::default()
@@ -46,7 +44,6 @@ pub struct App {
     pub state: Arc<Mutex<AppState>>,
     pub wheel_texture: Option<TextureHandle>,
     pub screen_texture: Option<TextureHandle>,
-    pub first_frame: bool,
 }
 
 // init
@@ -61,6 +58,11 @@ impl App {
                 egui::TextStyle::Body,
                 egui::FontId::new(15.0, egui::FontFamily::Monospace),
             );
+        });
+        context.send_viewport_cmd(ViewportCommand::EnableButtons {
+            minimized: true,
+            maximize: false,
+            close: true,
         });
 
         let state_clone = state.clone();
@@ -105,7 +107,6 @@ impl App {
             state,
             wheel_texture: None,
             screen_texture: None,
-            first_frame: true,
         }
     }
 
@@ -119,7 +120,7 @@ impl App {
                     .with_always_on_top()
                     .with_has_shadow(true)
                     .with_decorations(true)
-                    .with_inner_size((400.0, 250.0))
+                    .with_inner_size((450.0, 300.0))
                     .with_icon(load_icon_data("resources/app-icon.png").unwrap())
                     .with_taskbar(true)
                     .with_drag_and_drop(true)
@@ -139,7 +140,7 @@ impl App {
 // ui
 impl eframe::App for App {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
-        let state = self.state.lock().unwrap();
+        let mut state = self.state.lock().unwrap();
 
         let color = Color32::from_rgb(state.color.r, state.color.g, state.color.b);
         let color_revert = Color32::from_rgb(
@@ -148,62 +149,120 @@ impl eframe::App for App {
             state.color.revert().b,
         );
         let hsv = state.color.to_hsv();
+        let hsl = state.color.to_hsl();
 
         let fg_color = Color32::from_rgb(219, 214, 201);
-        let bg_color = Color32::from_rgb(31, 36, 48);
+        let bg_color = Color32::from_rgb(43, 43, 43);
 
-        if state.visible {
-            egui::CentralPanel::default()
-                .frame(Frame {
-                    fill: bg_color,
-                    inner_margin: Margin::same(15),
-                    // corner_radius: CornerRadius::same(5),
-                    // stroke: Stroke::new(2.0, fg_color),
-                    ..Default::default()
-                })
-                .show(ctx, |ui| {
-                    ui.label(RichText::new(state.position).color(fg_color).strong());
-                    ui.label(RichText::new(state.color).color(fg_color).strong());
-                    ui.label(RichText::new(hsv).color(fg_color).strong());
-                    ui.horizontal(|ui| {
-                        Frame {
-                            inner_margin: Margin::same(5),
-                            ..Default::default()
-                        }
+        egui::CentralPanel::default()
+            .frame(Frame {
+                fill: bg_color,
+                inner_margin: Margin::same(10),
+                // corner_radius: CornerRadius::same(5),
+                // stroke: Stroke::new(2.0, fg_color),
+                ..Default::default()
+            })
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    Frame {
+                        inner_margin: Margin::same(5),
+                        ..Default::default()
+                    }
+                    .show(ui, |ui| {
+                        ui.vertical(|ui| {
+                            let desired_size = egui::vec2(50.0, 50.0); // 正方形大小
+                            let (rect, _) =
+                                ui.allocate_exact_size(desired_size, egui::Sense::hover());
+
+                            let rounding = CornerRadius::same(10); // 圆角半径
+                            let stroke = Stroke::new(2.0, fg_color);
+
+                            ui.painter()
+                                .rect(rect, rounding, color, stroke, StrokeKind::Middle);
+                        });
+                        ui.vertical(|ui| {
+                            Frame {
+                                inner_margin: Margin {
+                                    left: 15,
+                                    right: 0,
+                                    top: 0,
+                                    bottom: 0,
+                                },
+
+                                ..Default::default()
+                            }
                             .show(ui, |ui| {
-                                show_wheel(
-                                    ui,
-                                    &mut self.wheel_texture,
-                                    color,
-                                    color_revert,
-                                    80.0,
-                                    12.0,
-                                );
+                                ui.set_width(210.0);
+                                ui.label(RichText::new(state.position).color(fg_color).strong());
+                                ui.label(RichText::new(state.color).color(fg_color).strong());
+                                ui.label(RichText::new(hsv).color(fg_color).strong());
+                                ui.label(RichText::new(hsl).color(fg_color).strong());
                             });
-
-                        show_screen_img(
-                            ui,
-                            &mut self.screen_texture,
-                            160.0,
-                            state.screen_tex_size,
-                            state.screen_colors.clone(),
-                            color_revert,
-                            state.screen_sample_size,
-                        );
+                        });
+                        ui.vertical(|ui| {
+                            Frame {
+                                inner_margin: Margin {
+                                    left: 15,
+                                    right: 0,
+                                    top: 0,
+                                    bottom: 0,
+                                },
+                                ..Default::default()
+                            }
+                            .show(ui, |ui| {
+                                Frame {
+                                    inner_margin: Margin {
+                                        left: 10,
+                                        right: 10,
+                                        top: 2,
+                                        bottom: 2,
+                                    },
+                                    ..Default::default()
+                                }
+                                .show(ui, |ui| {
+                                    ui.set_width(120.0);
+                                    ui.set_height(25.0);
+                                    let sample_size = state.screen_sample_size;
+                                    let sample_size_btn =
+                                        Button::new(format!("sample: {:2}", sample_size))
+                                            .min_size(Vec2::new(100.0, 20.0));
+                                    let sample_size_btn_response = ui.add(sample_size_btn);
+                                    if sample_size_btn_response.clicked_by(PointerButton::Primary) {
+                                        if sample_size < state.screen_tex_size {
+                                            state.screen_sample_size = sample_size + 2;
+                                        }
+                                    }
+                                    if sample_size_btn_response.clicked_by(PointerButton::Secondary)
+                                    {
+                                        if sample_size > 1 {
+                                            state.screen_sample_size = sample_size - 2;
+                                        }
+                                    }
+                                })
+                            });
+                        });
                     });
                 });
-        }
+                ui.horizontal(|ui| {
+                    Frame {
+                        inner_margin: Margin::same(5),
+                        ..Default::default()
+                    }
+                    .show(ui, |ui| {
+                        show_wheel(ui, &mut self.wheel_texture, color, color_revert, 80.0, 12.0);
+                    });
 
-        if self.first_frame {
-            let used_size = ctx.used_size(); // 获取当前 UI 实际占用的像素尺寸
-            ctx.send_viewport_cmd(ViewportCommand::InnerSize(used_size));
-            ctx.send_viewport_cmd(ViewportCommand::EnableButtons {
-                minimized: true,
-                maximize: false,
-                close: true,
+                    show_screen_img(
+                        ui,
+                        &mut self.screen_texture,
+                        160.0,
+                        state.screen_tex_size,
+                        state.screen_colors.clone(),
+                        color_revert,
+                        state.screen_sample_size,
+                    );
+                });
             });
-            self.first_frame = false;
-        }
 
         ctx.request_repaint_after(Duration::from_millis(34));
     }
@@ -239,49 +298,49 @@ pub fn show_screen_img(
             inner_margin: Margin::same(5),
             ..Default::default()
         }
-            .show(ui, |ui| {
-                let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), egui::Sense::hover());
-                let painter = ui.painter();
-                painter.image(
-                    tex.id(),
-                    rect,
-                    Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
-                    Color32::WHITE,
-                );
+        .show(ui, |ui| {
+            let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), egui::Sense::hover());
+            let painter = ui.painter();
+            painter.image(
+                tex.id(),
+                rect,
+                Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+                Color32::WHITE,
+            );
 
-                let half_sample_size = (screen_sample_size as f32 / 2.0).floor();
-                let min_factor =
-                    ((tex_size as f32 / 2.0).floor() - half_sample_size) / (tex_size as f32);
-                let max_factor =
-                    ((tex_size as f32 / 2.0).floor() + half_sample_size + 1.0) / (tex_size as f32);
-                let min_x = (rect.max.x - rect.min.x) * min_factor + rect.min.x;
-                let max_x = (rect.max.x - rect.min.x) * max_factor + rect.min.x;
-                let min_y = (rect.max.y - rect.min.y) * min_factor + rect.min.y;
-                let max_y = (rect.max.y - rect.min.y) * max_factor + rect.min.y;
-                let square_rect = Rect::from_min_max(Pos2::new(min_x, min_y), Pos2::new(max_x, max_y));
-                painter.rect_stroke(
-                    square_rect,
-                    0.0,
-                    Stroke::new(2.0, color_revert),
-                    egui::StrokeKind::Outside,
-                );
-            });
+            let half_sample_size = (screen_sample_size as f32 / 2.0).floor();
+            let min_factor =
+                ((tex_size as f32 / 2.0).floor() - half_sample_size) / (tex_size as f32);
+            let max_factor =
+                ((tex_size as f32 / 2.0).floor() + half_sample_size + 1.0) / (tex_size as f32);
+            let min_x = (rect.max.x - rect.min.x) * min_factor + rect.min.x;
+            let max_x = (rect.max.x - rect.min.x) * max_factor + rect.min.x;
+            let min_y = (rect.max.y - rect.min.y) * min_factor + rect.min.y;
+            let max_y = (rect.max.y - rect.min.y) * max_factor + rect.min.y;
+            let square_rect = Rect::from_min_max(Pos2::new(min_x, min_y), Pos2::new(max_x, max_y));
+            painter.rect_stroke(
+                square_rect,
+                0.0,
+                Stroke::new(2.0, color_revert),
+                egui::StrokeKind::Outside,
+            );
+        });
     } else {
         Frame {
             inner_margin: Margin::same(5),
             ..Default::default()
         }
-            .show(ui, |ui| {
-                let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), egui::Sense::hover());
-                let painter = ui.painter();
-                painter.rect(
-                    rect,
-                    0.0,
-                    Color32::TRANSPARENT,
-                    Stroke::NONE,
-                    egui::StrokeKind::Middle,
-                );
-            });
+        .show(ui, |ui| {
+            let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), egui::Sense::hover());
+            let painter = ui.painter();
+            painter.rect(
+                rect,
+                0.0,
+                Color32::TRANSPARENT,
+                Stroke::NONE,
+                egui::StrokeKind::Middle,
+            );
+        });
     }
 }
 
