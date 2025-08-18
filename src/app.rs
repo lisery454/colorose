@@ -66,7 +66,6 @@ impl App {
         });
 
         let state_clone = state.clone();
-        let context_clone = context.clone();
         thread::spawn(move || {
             loop {
                 thread::sleep(Duration::from_millis(16));
@@ -453,7 +452,7 @@ pub fn show_wheel(
             Color32::WHITE,
         );
 
-        let mut hsv: HSV = Color::from(color).to_hsv();
+        let hsv: HSV = Color::from(color).to_hsv();
 
         // ===== 绘制 SV 方块 =====
         let square_size = (outer_radius - ring_thickness) * 2.0 / 1.414 - 3.0;
