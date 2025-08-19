@@ -4,7 +4,7 @@ use egui::Color32;
 use screenshots::Screen;
 use windows::Win32::{Foundation::POINT, UI::WindowsAndMessaging::GetCursorPos};
 
-use crate::{color::Color, position::Position};
+use crate::model::{color::Color, position::Position};
 
 #[derive(Debug)]
 pub enum GetCursorColorError {
