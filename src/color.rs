@@ -1,5 +1,5 @@
-use std::fmt::Display;
 use egui::Color32;
+use std::fmt::Display;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Color {
@@ -121,6 +121,12 @@ impl From<Color32> for Color {
     }
 }
 
+impl Into<Color32> for Color {
+    fn into(self) -> Color32 {
+        Color32::from_rgb(self.r, self.g, self.b)
+    }
+}
+
 impl Into<String> for HSL {
     fn into(self) -> String {
         format!(
@@ -129,6 +135,63 @@ impl Into<String> for HSL {
             self.s * 100.0,
             self.l * 100.0
         )
+    }
+}
+
+impl HSL {
+    pub fn new(h: f32, s: f32, l: f32) -> Self {
+        Self { h, s, l }
+    }
+
+    pub fn to_rgb(&self) -> Color {
+        let h = self.h / 360.0; // 归一化色相到0-1
+        let s = self.s;
+        let l = self.l;
+
+        // 辅助函数：将0-1范围内的值转换为0-255的u8
+        let to_u8 = |x: f32| (x.clamp(0.0, 1.0) * 255.0).round() as u8;
+
+        if s == 0.0 {
+            // 无饱和度，直接返回灰度
+            let value = to_u8(l);
+            return Color {
+                r: value,
+                g: value,
+                b: value,
+            };
+        }
+
+        let q = if l < 0.5 {
+            l * (1.0 + s)
+        } else {
+            l + s - l * s
+        };
+        let p = 2.0 * l - q;
+
+        let hue_to_rgb = |t: f32| {
+            let t = if t < 0.0 {
+                t + 1.0
+            } else if t > 1.0 {
+                t - 1.0
+            } else {
+                t
+            };
+            if t < 1.0 / 6.0 {
+                p + (q - p) * 6.0 * t
+            } else if t < 1.0 / 2.0 {
+                q
+            } else if t < 2.0 / 3.0 {
+                p + (q - p) * (2.0 / 3.0 - t) * 6.0
+            } else {
+                p
+            }
+        };
+
+        Color {
+            r: to_u8(hue_to_rgb(h + 1.0 / 3.0)),
+            g: to_u8(hue_to_rgb(h)),
+            b: to_u8(hue_to_rgb(h - 1.0 / 3.0)),
+        }
     }
 }
 
