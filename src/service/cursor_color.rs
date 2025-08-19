@@ -81,6 +81,7 @@ pub fn get_screen_data(
                 .or(Err(GetCursorColorError::UnableGetBuffer))?;
 
             let mut sample_colors = vec![];
+            let half_sample_size = half_sample_size.min(half_size as i32);
             for dx in -half_sample_size..=half_sample_size {
                 for dy in -half_sample_size..=half_sample_size {
                     let x = (half_size as i32 + dx) as u32;

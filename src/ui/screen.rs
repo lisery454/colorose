@@ -7,8 +7,11 @@ pub fn show_screen_img(
     tex_size: usize,
     pixels: Vec<Color32>,
     color_revert: Color32,
-    screen_sample_size: usize,
+    screen_sample_size: &mut usize,
+    current_tex_size: &mut usize,
 ) {
+    let current_screen_sample_size = *screen_sample_size;
+
     if tex_size * tex_size == pixels.len() {
         *texture = Some(ui.ctx().load_texture(
             "screen_image",
@@ -19,6 +22,10 @@ pub fn show_screen_img(
             },
             TextureOptions::NEAREST,
         ));
+        if current_screen_sample_size > tex_size {
+            *screen_sample_size = tex_size;
+        }
+        *current_tex_size = tex_size;
     }
 
     if let Some(tex) = texture {
@@ -36,11 +43,11 @@ pub fn show_screen_img(
                 Color32::WHITE,
             );
 
-            let half_sample_size = (screen_sample_size as f32 / 2.0).floor();
-            let min_factor =
-                ((tex_size as f32 / 2.0).floor() - half_sample_size) / (tex_size as f32);
-            let max_factor =
-                ((tex_size as f32 / 2.0).floor() + half_sample_size + 1.0) / (tex_size as f32);
+            let half_tex_size = (tex_size as f32 / 2.0).floor();
+            let half_sample_size = (current_screen_sample_size as f32 / 2.0).floor();
+            let half_sample_size = half_sample_size.min(half_tex_size);
+            let min_factor = (half_tex_size - half_sample_size) / (tex_size as f32);
+            let max_factor = (half_tex_size + half_sample_size + 1.0) / (tex_size as f32);
             let min_x = (rect.max.x - rect.min.x) * min_factor + rect.min.x;
             let max_x = (rect.max.x - rect.min.x) * max_factor + rect.min.x;
             let min_y = (rect.max.y - rect.min.y) * min_factor + rect.min.y;

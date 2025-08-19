@@ -21,6 +21,7 @@ pub struct App {
     pub state: Arc<Mutex<AppState>>,
     pub wheel_texture: Option<TextureHandle>,
     pub screen_texture: Option<TextureHandle>,
+    pub current_screen_tex_size: usize,
 }
 
 // init
@@ -85,6 +86,7 @@ impl App {
             state,
             wheel_texture: None,
             screen_texture: None,
+            current_screen_tex_size: 0,
         }
     }
 
@@ -245,6 +247,38 @@ impl eframe::App for App {
                                 .show(ui, |ui| {
                                     ui.set_width(120.0);
                                     ui.set_height(25.0);
+                                    let screen_tex_size = state.screen_tex_size;
+                                    let screen_tex_size_btn =
+                                        Button::new(format!("screen: {:2}", screen_tex_size))
+                                            .min_size(Vec2::new(100.0, 20.0));
+                                    let screen_tex_size_btn_response = ui.add(screen_tex_size_btn);
+                                    if screen_tex_size_btn_response
+                                        .clicked_by(PointerButton::Primary)
+                                    {
+                                        if screen_tex_size < 25 {
+                                            state.screen_tex_size = screen_tex_size + 2;
+                                        }
+                                    }
+                                    if screen_tex_size_btn_response
+                                        .clicked_by(PointerButton::Secondary)
+                                    {
+                                        if screen_tex_size > 1 {
+                                            state.screen_tex_size = screen_tex_size - 2;
+                                        }
+                                    }
+                                });
+                                Frame {
+                                    inner_margin: Margin {
+                                        left: 10,
+                                        right: 10,
+                                        top: 2,
+                                        bottom: 2,
+                                    },
+                                    ..Default::default()
+                                }
+                                .show(ui, |ui| {
+                                    ui.set_width(120.0);
+                                    ui.set_height(25.0);
                                     let wheel_mode = state.wheel_mode;
                                     let wheel_mode_btn =
                                         Button::new(format!("mode: {:?}", wheel_mode))
@@ -283,7 +317,8 @@ impl eframe::App for App {
                         state.screen_tex_size,
                         state.screen_colors.iter().map(|c| c.to_color32()).collect(),
                         color_revert,
-                        state.screen_sample_size,
+                        &mut state.screen_sample_size,
+                        &mut self.current_screen_tex_size,
                     );
                 });
             });
