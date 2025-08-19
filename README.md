@@ -5,7 +5,7 @@
 
 ## screenshot
 
-![screenshots](readme.assets/screenshots.png)
+![screenshots](readme.assets/screenshot.png)
 
 点击 sample 按钮可以修改采样的范围，左键右键分别是增加和减少。
 
