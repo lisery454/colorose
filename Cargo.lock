@@ -2852,6 +2852,7 @@ dependencies = [
  "eframe",
  "egui",
  "image 0.25.6",
+ "raw-window-handle",
  "screenshots",
  "windows 0.61.3",
  "winres",

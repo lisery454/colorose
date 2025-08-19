@@ -11,12 +11,18 @@ use egui::{
     ViewportCommand, epaint::Hsva,
 };
 use image::ImageReader;
+#[cfg(target_os = "windows")]
+use raw_window_handle::HasWindowHandle;
 use std::path::Path;
 use std::{
     error::Error,
     sync::{Arc, Mutex},
     thread,
     time::Duration,
+};
+use windows::Win32::{
+    Foundation::HWND,
+    Graphics::Dwm::{DWMWINDOWATTRIBUTE, DwmSetWindowAttribute},
 };
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WheelMode {
@@ -143,7 +149,20 @@ impl App {
                 multisampling: 8,
                 ..Default::default()
             },
-            Box::new(|cc| Ok(Box::new(App::new(state.clone(), &cc.egui_ctx.clone())))),
+            Box::new(|cc| {
+                #[cfg(target_os = "windows")]
+                if let Ok(handle) = cc.window_handle() {
+                    use raw_window_handle::RawWindowHandle;
+
+                    if let RawWindowHandle::Win32(handle) = handle.as_raw() {
+                        use windows::Win32::Foundation::HWND;
+                        let hwnd = HWND(handle.hwnd.get() as *mut _);
+                        enable_acrylic_effect(hwnd).expect("Failed to enable acrylic effect");
+                    }
+                }
+
+                Ok(Box::new(App::new(state.clone(), &cc.egui_ctx.clone())))
+            }),
         )?;
         Ok(())
     }
@@ -164,11 +183,11 @@ impl eframe::App for App {
         let hsl = state.color.to_hsl();
 
         let fg_color = Color32::from_rgb(219, 214, 201);
-        let bg_color = Color32::from_rgb(43, 43, 43);
+        // let bg_color = Color32::from_rgb(43, 43, 43);
 
         egui::CentralPanel::default()
             .frame(Frame {
-                fill: bg_color,
+                fill: Color32::TRANSPARENT,
                 inner_margin: Margin::same(10),
                 // corner_radius: CornerRadius::same(5),
                 // stroke: Stroke::new(2.0, fg_color),
@@ -646,4 +665,20 @@ fn load_icon_data(path: impl AsRef<Path>) -> Option<Arc<IconData>> {
         width: width as _,
         height: height as _,
     }))
+}
+
+fn enable_acrylic_effect(hwnd: HWND) -> windows::core::Result<()> {
+    unsafe {
+        const DWMWA_SYSTEMBACKDROP_TYPE: DWMWINDOWATTRIBUTE = DWMWINDOWATTRIBUTE(38);
+        const DWMSBT_ACRYLIC: u32 = 2; // 亚克力效果
+
+        DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_SYSTEMBACKDROP_TYPE,
+            &DWMSBT_ACRYLIC as *const _ as *const _,
+            std::mem::size_of_val(&DWMSBT_ACRYLIC) as u32,
+        )?;
+    }
+
+    Ok(())
 }
