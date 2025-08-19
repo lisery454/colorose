@@ -1,4 +1,3 @@
-
 use egui::{
     Color32, Frame, Margin, Mesh, Pos2, Rect, Stroke, TextureHandle, TextureOptions, Ui, Vec2,
     epaint::Hsva,
@@ -147,10 +146,10 @@ pub fn show_wheel(
                     {
                         let mut mesh = Mesh::default();
 
-                        let color_top_left: Color32 = HSL::new(hsl.h, 1.0, 1.0).to_rgb().into();
-                        let color_middle_left: Color32 = HSL::new(hsl.h, 0.0, 0.5).to_rgb().into();
-                        let color_bottom_left: Color32 = HSL::new(hsl.h, 1.0, 0.0).to_rgb().into();
-                        let color_middle_right: Color32 = HSL::new(hsl.h, 1.0, 0.5).to_rgb().into();
+                        let color_top_left = HSL::new(hsl.h, 1.0, 1.0).to_rgb().to_color32();
+                        let color_middle_left = HSL::new(hsl.h, 0.0, 0.5).to_rgb().to_color32();
+                        let color_bottom_left = HSL::new(hsl.h, 1.0, 0.0).to_rgb().to_color32();
+                        let color_middle_right = HSL::new(hsl.h, 1.0, 0.5).to_rgb().to_color32();
 
                         let idx = mesh.vertices.len() as u32;
                         mesh.colored_vertex(top_left, color_top_left);

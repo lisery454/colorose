@@ -1,6 +1,5 @@
 use std::{error::Error, fmt::Display};
 
-use egui::Color32;
 use screenshots::Screen;
 use windows::Win32::{Foundation::POINT, UI::WindowsAndMessaging::GetCursorPos};
 
@@ -45,11 +44,15 @@ pub fn get_mouse_position() -> Result<Position, GetCursorColorError> {
     }
 }
 
-pub fn get_pixel_colors(
+pub struct ScreenData {
+    pub cursor_pixel_color: Color,
+    pub screen_pixel_colors: Vec<Color>,
+}
+pub fn get_screen_data(
     position: Position,
     screen_tex_size: usize,
     screen_sample_size: usize,
-) -> Result<(Color, Vec<Color32>), GetCursorColorError> {
+) -> Result<ScreenData, GetCursorColorError> {
     let screens = Screen::all().or(Err(GetCursorColorError::UnableGetScreens))?;
     for screen in screens {
         let scale = screen.display_info.scale_factor;
@@ -103,13 +106,15 @@ pub fn get_pixel_colors(
             for y in 0..height {
                 for x in 0..width {
                     let pixel = image.get_pixel(x, y);
-                    let color =
-                        Color32::from_rgba_unmultiplied(pixel[0], pixel[1], pixel[2], pixel[3]);
+                    let color = Color::new(pixel[0], pixel[1], pixel[2]);
                     colors.push(color);
                 }
             }
 
-            return Ok((color, colors));
+            return Ok(ScreenData {
+                cursor_pixel_color: color,
+                screen_pixel_colors: colors,
+            });
         }
     }
 

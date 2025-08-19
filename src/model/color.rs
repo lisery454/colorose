@@ -34,6 +34,14 @@ impl Into<String> for Color {
 }
 
 impl Color {
+    pub fn new(r: u8, g: u8, b: u8) -> Self {
+        Self { r, g, b }
+    }
+
+    pub fn to_color32(&self) -> Color32 {
+        Color32::from_rgb(self.r, self.g, self.b)
+    }
+
     pub fn revert(&self) -> Self {
         Color {
             r: 255 - self.r,
@@ -118,12 +126,6 @@ impl From<Color32> for Color {
             g: value.g(),
             b: value.b(),
         }
-    }
-}
-
-impl Into<Color32> for Color {
-    fn into(self) -> Color32 {
-        Color32::from_rgb(self.r, self.g, self.b)
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::app::app_state::AppState;
 use crate::model::wheel_mode::WheelMode;
-use crate::service::cursor_color::{get_mouse_position, get_pixel_colors};
+use crate::service::cursor_color::{get_mouse_position, get_screen_data};
 use crate::service::utils::{load_icon_data, set_dpi_awareness};
 use crate::ui::{screen::show_screen_img, wheel::show_wheel};
 use eframe::epaint::StrokeKind;
@@ -56,13 +56,15 @@ impl App {
 
                 let screen_tex_size = state_clone.lock().unwrap().screen_tex_size;
                 let screen_sample_size = state_clone.lock().unwrap().screen_sample_size;
-                let (color, colors) =
-                    match get_pixel_colors(position, screen_tex_size, screen_sample_size) {
+                let screen_data =
+                    match get_screen_data(position, screen_tex_size, screen_sample_size) {
                         Ok(v) => v,
                         Err(_) => {
                             continue;
                         }
                     };
+                let color = screen_data.cursor_pixel_color;
+                let colors = screen_data.screen_pixel_colors;
 
                 let _ = {
                     let mut s = state_clone.lock().unwrap();
@@ -279,7 +281,7 @@ impl eframe::App for App {
                         &mut self.screen_texture,
                         160.0,
                         state.screen_tex_size,
-                        state.screen_colors.clone(),
+                        state.screen_colors.iter().map(|c| c.to_color32()).collect(),
                         color_revert,
                         state.screen_sample_size,
                     );
