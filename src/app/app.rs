@@ -160,166 +160,195 @@ impl eframe::App for App {
             })
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    Frame {
-                        inner_margin: Margin::same(5),
-                        ..Default::default()
-                    }
-                    .show(ui, |ui| {
-                        ui.vertical(|ui| {
-                            let desired_size = egui::vec2(50.0, 50.0); // 正方形大小
-                            let (rect, _) =
-                                ui.allocate_exact_size(desired_size, egui::Sense::hover());
-
-                            let rounding = CornerRadius::same(10); // 圆角半径
-                            let stroke = Stroke::new(2.0, fg_color);
-
-                            ui.painter()
-                                .rect(rect, rounding, color, stroke, StrokeKind::Middle);
-                        });
-                        ui.vertical(|ui| {
+                    ui.vertical(|ui| {
+                        ui.horizontal(|ui| {
                             Frame {
-                                inner_margin: Margin {
-                                    left: 15,
-                                    right: 0,
-                                    top: 0,
-                                    bottom: 0,
-                                },
-
+                                inner_margin: Margin::same(5),
                                 ..Default::default()
                             }
                             .show(ui, |ui| {
-                                ui.set_width(210.0);
-                                ui.label(RichText::new(state.position).color(fg_color).strong());
-                                ui.label(RichText::new(state.color).color(fg_color).strong());
-                                ui.label(RichText::new(hsv).color(fg_color).strong());
-                                ui.label(RichText::new(hsl).color(fg_color).strong());
+                                ui.vertical(|ui| {
+                                    let desired_size = egui::vec2(50.0, 50.0); // 正方形大小
+                                    let (rect, _) =
+                                        ui.allocate_exact_size(desired_size, egui::Sense::hover());
+
+                                    let rounding = CornerRadius::same(10); // 圆角半径
+                                    let stroke = Stroke::new(2.0, fg_color);
+
+                                    ui.painter().rect(
+                                        rect,
+                                        rounding,
+                                        color,
+                                        stroke,
+                                        StrokeKind::Middle,
+                                    );
+                                });
+                                ui.vertical(|ui| {
+                                    Frame {
+                                        inner_margin: Margin {
+                                            left: 15,
+                                            right: 0,
+                                            top: 0,
+                                            bottom: 0,
+                                        },
+
+                                        ..Default::default()
+                                    }
+                                    .show(ui, |ui| {
+                                        ui.set_width(210.0);
+                                        ui.label(
+                                            RichText::new(state.position).color(fg_color).strong(),
+                                        );
+                                        ui.label(
+                                            RichText::new(state.color).color(fg_color).strong(),
+                                        );
+                                        ui.label(
+                                            RichText::new(state.color.to_hex())
+                                                .color(fg_color)
+                                                .strong(),
+                                        );
+                                        ui.label(RichText::new(hsv).color(fg_color).strong());
+                                        ui.label(RichText::new(hsl).color(fg_color).strong());
+                                    });
+                                });
+                                ui.vertical(|ui| {
+                                    Frame {
+                                        inner_margin: Margin {
+                                            left: 5,
+                                            right: 0,
+                                            top: 0,
+                                            bottom: 0,
+                                        },
+                                        ..Default::default()
+                                    }
+                                    .show(ui, |ui| {
+                                        Frame {
+                                            inner_margin: Margin {
+                                                left: 5,
+                                                right: 5,
+                                                top: 2,
+                                                bottom: 2,
+                                            },
+                                            ..Default::default()
+                                        }
+                                        .show(ui, |ui| {
+                                            ui.set_width(120.0);
+                                            ui.set_height(25.0);
+                                            let sample_size = state.screen_sample_size;
+                                            let sample_size_btn =
+                                                Button::new(format!("sample: {:2}", sample_size))
+                                                    .min_size(Vec2::new(100.0, 20.0));
+                                            let sample_size_btn_response = ui.add(sample_size_btn);
+                                            if sample_size_btn_response
+                                                .clicked_by(PointerButton::Secondary)
+                                            {
+                                                if sample_size < state.screen_tex_size {
+                                                    state.screen_sample_size = sample_size + 2;
+                                                }
+                                            }
+                                            if sample_size_btn_response
+                                                .clicked_by(PointerButton::Primary)
+                                            {
+                                                if sample_size > 1 {
+                                                    state.screen_sample_size = sample_size - 2;
+                                                }
+                                            }
+                                        });
+                                        Frame {
+                                            inner_margin: Margin {
+                                                left: 5,
+                                                right: 5,
+                                                top: 2,
+                                                bottom: 2,
+                                            },
+                                            ..Default::default()
+                                        }
+                                        .show(ui, |ui| {
+                                            ui.set_width(120.0);
+                                            ui.set_height(25.0);
+                                            let screen_tex_size = state.screen_tex_size;
+                                            let screen_tex_size_btn = Button::new(format!(
+                                                "screen: {:2}",
+                                                screen_tex_size
+                                            ))
+                                            .min_size(Vec2::new(100.0, 20.0));
+                                            let screen_tex_size_btn_response =
+                                                ui.add(screen_tex_size_btn);
+                                            if screen_tex_size_btn_response
+                                                .clicked_by(PointerButton::Secondary)
+                                            {
+                                                if screen_tex_size < 25 {
+                                                    state.screen_tex_size = screen_tex_size + 2;
+                                                }
+                                            }
+                                            if screen_tex_size_btn_response
+                                                .clicked_by(PointerButton::Primary)
+                                            {
+                                                if screen_tex_size > 1 {
+                                                    state.screen_tex_size = screen_tex_size - 2;
+                                                }
+                                            }
+                                        });
+                                        Frame {
+                                            inner_margin: Margin {
+                                                left: 5,
+                                                right: 5,
+                                                top: 2,
+                                                bottom: 2,
+                                            },
+                                            ..Default::default()
+                                        }
+                                        .show(ui, |ui| {
+                                            ui.set_width(120.0);
+                                            ui.set_height(25.0);
+                                            let wheel_mode = state.wheel_mode;
+                                            let wheel_mode_btn =
+                                                Button::new(format!("mode: {:?}", wheel_mode))
+                                                    .min_size(Vec2::new(100.0, 20.0));
+                                            let wheel_mode_btn_response = ui.add(wheel_mode_btn);
+                                            if wheel_mode_btn_response
+                                                .clicked_by(PointerButton::Primary)
+                                            {
+                                                match wheel_mode {
+                                                    WheelMode::HSL => {
+                                                        state.wheel_mode = WheelMode::HSV;
+                                                    }
+                                                    WheelMode::HSV => {
+                                                        state.wheel_mode = WheelMode::HSL;
+                                                    }
+                                                };
+                                            }
+                                        });
+                                    });
+                                });
                             });
                         });
-                        ui.vertical(|ui| {
-                            Frame {
-                                inner_margin: Margin {
-                                    left: 15,
-                                    right: 0,
-                                    top: 0,
-                                    bottom: 0,
-                                },
-                                ..Default::default()
-                            }
-                            .show(ui, |ui| {
-                                Frame {
-                                    inner_margin: Margin {
-                                        left: 10,
-                                        right: 10,
-                                        top: 2,
-                                        bottom: 2,
-                                    },
-                                    ..Default::default()
-                                }
-                                .show(ui, |ui| {
-                                    ui.set_width(120.0);
-                                    ui.set_height(25.0);
-                                    let sample_size = state.screen_sample_size;
-                                    let sample_size_btn =
-                                        Button::new(format!("sample: {:2}", sample_size))
-                                            .min_size(Vec2::new(100.0, 20.0));
-                                    let sample_size_btn_response = ui.add(sample_size_btn);
-                                    if sample_size_btn_response.clicked_by(PointerButton::Secondary) {
-                                        if sample_size < state.screen_tex_size {
-                                            state.screen_sample_size = sample_size + 2;
-                                        }
-                                    }
-                                    if sample_size_btn_response.clicked_by(PointerButton::Primary)
-                                    {
-                                        if sample_size > 1 {
-                                            state.screen_sample_size = sample_size - 2;
-                                        }
-                                    }
-                                });
-                                Frame {
-                                    inner_margin: Margin {
-                                        left: 10,
-                                        right: 10,
-                                        top: 2,
-                                        bottom: 2,
-                                    },
-                                    ..Default::default()
-                                }
-                                .show(ui, |ui| {
-                                    ui.set_width(120.0);
-                                    ui.set_height(25.0);
-                                    let screen_tex_size = state.screen_tex_size;
-                                    let screen_tex_size_btn =
-                                        Button::new(format!("screen: {:2}", screen_tex_size))
-                                            .min_size(Vec2::new(100.0, 20.0));
-                                    let screen_tex_size_btn_response = ui.add(screen_tex_size_btn);
-                                    if screen_tex_size_btn_response
-                                        .clicked_by(PointerButton::Secondary)
-                                    {
-                                        if screen_tex_size < 25 {
-                                            state.screen_tex_size = screen_tex_size + 2;
-                                        }
-                                    }
-                                    if screen_tex_size_btn_response
-                                        .clicked_by(PointerButton::Primary)
-                                    {
-                                        if screen_tex_size > 1 {
-                                            state.screen_tex_size = screen_tex_size - 2;
-                                        }
-                                    }
-                                });
-                                Frame {
-                                    inner_margin: Margin {
-                                        left: 10,
-                                        right: 10,
-                                        top: 2,
-                                        bottom: 2,
-                                    },
-                                    ..Default::default()
-                                }
-                                .show(ui, |ui| {
-                                    ui.set_width(120.0);
-                                    ui.set_height(25.0);
-                                    let wheel_mode = state.wheel_mode;
-                                    let wheel_mode_btn =
-                                        Button::new(format!("mode: {:?}", wheel_mode))
-                                            .min_size(Vec2::new(100.0, 20.0));
-                                    let wheel_mode_btn_response = ui.add(wheel_mode_btn);
-                                    if wheel_mode_btn_response.clicked_by(PointerButton::Primary) {
-                                        match wheel_mode {
-                                            WheelMode::HSL => {
-                                                state.wheel_mode = WheelMode::HSV;
-                                            }
-                                            WheelMode::HSV => {
-                                                state.wheel_mode = WheelMode::HSL;
-                                            }
-                                        };
-                                    }
-                                });
-                            });
+                        ui.horizontal(|ui| {
+                            show_wheel(
+                                ui,
+                                &mut self.wheel_texture,
+                                color,
+                                color_revert,
+                                80.0,
+                                12.0,
+                                &state.wheel_mode,
+                            );
+
+                            show_screen_img(
+                                ui,
+                                &mut self.screen_texture,
+                                160.0,
+                                state.screen_tex_size,
+                                state.screen_colors.iter().map(|c| c.to_color32()).collect(),
+                                color_revert,
+                                &mut state.screen_sample_size,
+                                &mut self.current_screen_tex_size,
+                            );
                         });
                     });
-                });
-                ui.horizontal(|ui| {
-                    show_wheel(
-                        ui,
-                        &mut self.wheel_texture,
-                        color,
-                        color_revert,
-                        80.0,
-                        12.0,
-                        &state.wheel_mode,
-                    );
-
-                    show_screen_img(
-                        ui,
-                        &mut self.screen_texture,
-                        160.0,
-                        state.screen_tex_size,
-                        state.screen_colors.iter().map(|c| c.to_color32()).collect(),
-                        color_revert,
-                        &mut state.screen_sample_size,
-                        &mut self.current_screen_tex_size,
-                    );
+                    // ui.vertical(|ui| {
+                    // let _ = ui.button(state.color.to_hex());
+                    // });
                 });
             });
 
