@@ -3,6 +3,19 @@
 version = 4
 
 [[package]]
+name = "Colorose"
+version = "0.1.0"
+dependencies = [
+ "eframe",
+ "egui",
+ "image 0.25.6",
+ "raw-window-handle",
+ "screenshots",
+ "windows 0.61.3",
+ "winres",
+]
+
+[[package]]
 name = "ab_glyph"
 version = "0.2.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2844,19 +2857,6 @@ name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
-
-[[package]]
-name = "screen_color"
-version = "0.1.0"
-dependencies = [
- "eframe",
- "egui",
- "image 0.25.6",
- "raw-window-handle",
- "screenshots",
- "windows 0.61.3",
- "winres",
-]
 
 [[package]]
 name = "screenshots"

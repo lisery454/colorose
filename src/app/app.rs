@@ -223,12 +223,12 @@ impl eframe::App for App {
                                         Button::new(format!("sample: {:2}", sample_size))
                                             .min_size(Vec2::new(100.0, 20.0));
                                     let sample_size_btn_response = ui.add(sample_size_btn);
-                                    if sample_size_btn_response.clicked_by(PointerButton::Primary) {
+                                    if sample_size_btn_response.clicked_by(PointerButton::Secondary) {
                                         if sample_size < state.screen_tex_size {
                                             state.screen_sample_size = sample_size + 2;
                                         }
                                     }
-                                    if sample_size_btn_response.clicked_by(PointerButton::Secondary)
+                                    if sample_size_btn_response.clicked_by(PointerButton::Primary)
                                     {
                                         if sample_size > 1 {
                                             state.screen_sample_size = sample_size - 2;
@@ -253,14 +253,14 @@ impl eframe::App for App {
                                             .min_size(Vec2::new(100.0, 20.0));
                                     let screen_tex_size_btn_response = ui.add(screen_tex_size_btn);
                                     if screen_tex_size_btn_response
-                                        .clicked_by(PointerButton::Primary)
+                                        .clicked_by(PointerButton::Secondary)
                                     {
                                         if screen_tex_size < 25 {
                                             state.screen_tex_size = screen_tex_size + 2;
                                         }
                                     }
                                     if screen_tex_size_btn_response
-                                        .clicked_by(PointerButton::Secondary)
+                                        .clicked_by(PointerButton::Primary)
                                     {
                                         if screen_tex_size > 1 {
                                             state.screen_tex_size = screen_tex_size - 2;
